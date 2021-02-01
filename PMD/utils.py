@@ -83,3 +83,38 @@ def write_prod_input_file(plumed_in,index,direction):
     f.write('  plumed=1,plumedfile=\''+plumed_in+'\'\n/\n')
     f.close()
     return file_name
+
+def write_cpptraj_input_file(index,direction):
+    '''
+    write cpptraj inpute file for extract waters and Na+ and CL-
+    return the file name
+    '''
+    file_name='ctj'+str(index)+'_'+direction+'.in'
+    f = open(file_name,'w')
+    f.write('parm mol.prmtop\n')
+    f.write('trajin prod'+str(index)+'_'+direction+'.mdcrd\n')
+    f.write('strip :WAT\n')
+    f.write('strip :Na+\n')
+    f.write('strip :Cl-\n')
+    f.write('trajout prod'+str(index)+'_'+direction+'_nw.xtc\n')
+    f.close()
+    return file_name 
+
+def strip_topology_wat():
+    '''
+    strip water and ions from topology file
+    '''
+    if os.path.exists('mol.prmtop'):
+        f.open('ctj_top.in','w')
+        f.write('parm mol.prmtop\n')
+        f.write('parmstrip :WAT\n')
+        f.write('parmstrip :Na+\n')
+        f.write('parmstrip :Cl-\n')
+        f.write('parmwrite out mol_nw.prmtop\n')
+        f.close()
+        os.system('cpptraj -i ctj_top.in')
+    else:
+        print('No mol.prmtop file, maybe in the wrong directory.')
+    return None
+
+    
