@@ -100,12 +100,19 @@ def write_cpptraj_input_file(index,direction):
     f.close()
     return file_name 
 
+def run_cpptraj(ctj_in):
+    '''
+    run cpptraj to remove waters and ions of a trajectory and save the file
+    ''' 
+    os.system('cpptraj -i '+ctj_in)
+    return None
+
 def strip_topology_wat():
     '''
     strip water and ions from topology file
     '''
     if os.path.exists('mol.prmtop'):
-        f.open('ctj_top.in','w')
+        f = open('ctj_top.in','w')
         f.write('parm mol.prmtop\n')
         f.write('parmstrip :WAT\n')
         f.write('parmstrip :Na+\n')
