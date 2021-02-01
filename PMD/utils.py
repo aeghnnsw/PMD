@@ -5,7 +5,7 @@ import os
 def get_atom_ids(pdb_name,res_ids):
     '''
     Takes pdb file name, and res_ids as input and returns the atoms ids
-    Input:
+    Inputs:
         pdb_name:   string
         res_ids:    list of integers
     Return:
@@ -22,7 +22,7 @@ def get_atom_ids(pdb_name,res_ids):
 def write_plumed_file(atom_ids,frequency,force,index,direction):
     '''
     write plumed input file, use BIAS_VALUE as BIAS potential
-    Input:
+    Inputs:
         atom_ids:   list of integers
         frequency:  float (vibrational frequency)
         force:      float (transformed later to pN)
@@ -48,6 +48,11 @@ def write_plumed_file(atom_ids,frequency,force,index,direction):
 def write_plumed_files(atom_ids,frequency,force,index):
     '''
     write plumed input files for 3 directions
+    Inputs:
+        atom_ids:   list of integers
+        frequency:  float (see write_plumed_file)
+        force:      float (see write_plumed_file)
+        direction:  str   (see write_plumed_file)
     '''
     write_plumed_file(atom_ids,frequency,force,index,'x')
     write_plumed_file(atom_ids,frequency,force,index,'y')
@@ -56,6 +61,11 @@ def write_plumed_files(atom_ids,frequency,force,index):
 def run_simulation(plumed_in,direction,index,cuda='0'):
     '''
     run simulations for pumped MD
+    Inputs:
+        plumed_in:  str the name of plumed input file ex: "pump1_x.dat"
+        direction:  str
+        index:      int
+        cuda:       str (optional define the GPU name to use)
     '''
     input_file = write_prod_input_file(plumed_in,index,direction)
     output = 'prod'+str(index)+'_'+direction
@@ -67,16 +77,19 @@ def run_simulation(plumed_in,direction,index,cuda='0'):
     run_command = 'pmemd.cuda -O -i '+input_file+' -o '+out_file+' -p mol.prmtop -c equil.rst -x '+mdcrd_file+' -v '+mdvel_file
     os.system(run_command)
 
-def write_prod_input_file(plumed_in,index,direction):
+def write_prod_input_file(plumed_in,index,direction,time):
     '''
     write prod input files
+    Inputs:
+        time:   int in ps
     return input file name
     '''
+    nsteps = str(int(1000000*time))
     file_name = 'prod'+str(index)+'_'+direction+'.in'
     f = open(file_name,'w')
     f.write(file_name+'\n')
     f.write('&cntrl\n')
-    f.write('  imin=0,irest=1,ntx=5,\n  nstlim=10000,dt=0.001,\n  ntc=2,ntf=2,\n')
+    f.write('  imin=0,irest=1,ntx=5,\n  nstlim='+nsteps+',dt=0.001,\n  ntc=2,ntf=2,\n')
     f.write('  cut=8.0, ntb=2, ntp=1, taup=2.0,\n')
     f.write('  ntpr=5000,ntwx=50,ntwv=50,\n')
     f.write('  ntt=3,gamma_ln=2.0,temp0=3000.0,ig=-1,\n')
@@ -103,6 +116,8 @@ def write_cpptraj_input_file(index,direction):
 def run_cpptraj(ctj_in):
     '''
     run cpptraj to remove waters and ions of a trajectory and save the file
+    Inputs:
+        ctj_in: str name of cpptraj input file
     ''' 
     os.system('cpptraj -i '+ctj_in)
     return None
