@@ -58,7 +58,7 @@ def write_plumed_files(atom_ids,frequency,force,index):
     write_plumed_file(atom_ids,frequency,force,index,'y')
     write_plumed_file(atom_ids,frequency,force,index,'z')
 
-def run_simulation(plumed_in,direction,index,cuda='0'):
+def run_simulation(plumed_in,direction,index,time,cuda='0'):
     '''
     run simulations for pumped MD
     Inputs:
@@ -66,8 +66,9 @@ def run_simulation(plumed_in,direction,index,cuda='0'):
         direction:  str
         index:      int
         cuda:       str (optional define the GPU name to use)
+        time:       int in ps
     '''
-    input_file = write_prod_input_file(plumed_in,index,direction)
+    input_file = write_prod_input_file(plumed_in,index,direction,time)
     output = 'prod'+str(index)+'_'+direction
     cuda_command = 'export CUDA_VISIBLE_DEVICES='+cuda
     os.system(cuda_command)
