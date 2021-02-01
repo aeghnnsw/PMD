@@ -30,7 +30,7 @@ def write_plumed_file(atom_ids,frequency,force,index,direction):
     Create new plumed.in No Return
     '''
 
-    file_name = 'pump_'+str(index)+'_'+direction+'.in'
+    file_name = 'pump'+str(index)+'_'+direction+'.dat'
     atoms = [str(atom_id) for atom_id in atom_ids]
     atoms_str = ','.join(atoms)
     k = str(round(force/1.661,2))
@@ -57,15 +57,27 @@ def run_simulation(plumed_in,GPU,direction,index,cuda='0'):
     '''
     run simulations for pumped MD
     '''
-    if os.path.exists('prod.in') and os.path.exists(plumed_in):
-        output = 'prod'+str(index)+'_'+direction
-        os.sys('export CUDA_VISIBLE_DEVICES='+cuda)
-        out_file = output+'.out'
-        mdcrd_file = output+'.mdcrd'
-        mdvel_file = output+'.mdvel'
-        run_command = 'pmemd.cuda -O -i prod.in -o '+out_file+' -p mol.prmtop -c equil.rst -x '+mdcrd_file+' -v '+mdvel_file
-        os.sys(run_command)
-    else:
-        print('No md input files and please check your folder')
+    input_file = write_prod_input_file(plumed_in,index,direction)
+    output = 'prod'+str(index)+'_'+direction
+    os.sys('export CUDA_VISIBLE_DEVICES='+cuda)
+    out_file = output+'.out'
+    mdcrd_file = output+'.mdcrd'
+    mdvel_file = output+'.mdvel'
+    run_command = 'pmemd.cuda -O -i '+input_file+' -o '+out_file+' -p mol.prmtop -c equil.rst -x '+mdcrd_file+' -v '+mdvel_file
+    os.sys(run_command)
 
-
+def write_prod_input_file(plumed_in,index,direction):
+    '''
+    write prod input files
+    return input file name
+    '''
+    file_name = 'prod'+str(i)+'_'+direction+'.in'
+    f = open(file_name,'w')
+    f.write(file_name+'\n')
+    f.write('&cntrl\n')
+    f.write('  imin=0,irest=1,ntx=5,\n  nstlim=1000000,dt=0.001,\n  ntc=2,ntf=2,\n')
+    f.write('  cut=8.0, ntb=2, ntp=1, taup=2.0\n')
+    f.write('  ntpr=5000,ntwx=50,ntwv=50,\n')
+    f.write('  ntt=3,gamma_ln=2.0,temp0=3000.0,ig=-1,\n')
+    f.write('  plumed=1,plumedfile=\''+plumed_in+'\'\n/')
+    return file_name

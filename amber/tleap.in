@@ -1,0 +1,10 @@
+source leaprc.protein.ff14SB
+source leaprc.gaff
+source leaprc.water.tip3p 
+loadamberprep temp.prepi 
+loadamberparams temp.frcmod 
+mol = loadpdb temp.pdb 
+solvatebox mol TIP3PBOX 10
+addions mol Cl- 0 
+saveamberparm mol temp.prmtop temp.inpcrd 
+quit

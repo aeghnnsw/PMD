@@ -1,0 +1,9 @@
+#	Apply oscillated force to center of mass of ith residue
+
+t: TIME
+c: COM ATOMS=1-10
+k: MATHEVAL ARG=t VAR=t FUNC=10*cos(6.28*t) PERIODIC=NO
+P: POSITION ATOM=c
+v: MATHEVAL ARG=p.x,k VAR=x,y FUNC=x*y
+bv: BIASVALUE ARG=v
+
