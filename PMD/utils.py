@@ -65,7 +65,6 @@ def run_simulation(plumed_in,direction,index,cuda='0'):
     mdcrd_file = output+'.mdcrd'
     mdvel_file = output+'.mdvel'
     run_command = 'pmemd.cuda -O -i '+input_file+' -o '+out_file+' -p mol.prmtop -c equil.rst -x '+mdcrd_file+' -v '+mdvel_file
-    print(run_command)
     os.system(run_command)
 
 def write_prod_input_file(plumed_in,index,direction):
