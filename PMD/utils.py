@@ -102,12 +102,12 @@ def write_prod_input_file(direction,index,time):
     f.write('  imin=0,irest=1,ntx=5,\n  nstlim='+nsteps+',dt=0.001,\n  ntc=2,ntf=2,\n')
     f.write('  cut=8.0, ntb=2, ntp=1, taup=2.0,\n')
     f.write('  ntpr=5000,ntwx=10,\n')
-    f.write('  ntt=3,gamma_ln=2.0,temp0=300.0,ig=-1\n')
+    f.write('  ntt=3,gamma_ln=2.0,temp0=300.0,ig=-1')
     if index>0:
         plumed_in = 'pump'+str(index)+'_'+direction+'.dat'
         f.write(',\n  plumed=1,plumedfile=\''+plumed_in+'\'\n/\n')
     else:
-        f.write('/\n')
+        f.write('\n/\n')
     f.close()
     return file_name
 
