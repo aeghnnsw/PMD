@@ -35,7 +35,7 @@ def write_plumed_file(atom_ids,frequency,force,index,direction):
     '''
 
     file_name = 'pump'+str(index)+'_'+direction+'.dat'
-    atoms = [str(atom_id) for atom_id in atom_ids]
+    atoms = [str(atom_id+1) for atom_id in atom_ids]
     atoms_str = ','.join(atoms)
     k = str(round(force/1.661,2))
     omega = str(round(frequency*6.28,2))
