@@ -15,8 +15,11 @@ def get_atom_ids(pdb_name,res_ids):
     pdb = md.load_pdb(pdb_name)
     top = pdb.topology
     atom_ids = list()
-    for res_id in res_ids:
-        atom_ids.extend(top.select('resid '+str(res_id)))
+    if isinstance(res_ids,int):
+        atom_ids=top.select('resid '+str(res_ids))
+    else:
+        for res_id in res_ids:
+            atom_ids.extend(top.select('resid '+str(res_id)))
     return atom_ids
 
 
@@ -99,12 +102,12 @@ def write_prod_input_file(direction,index,time):
     f.write('  imin=0,irest=1,ntx=5,\n  nstlim='+nsteps+',dt=0.001,\n  ntc=2,ntf=2,\n')
     f.write('  cut=8.0, ntb=2, ntp=1, taup=2.0,\n')
     f.write('  ntpr=5000,ntwx=10,\n')
-    f.write('  ntt=3,gamma_ln=2.0,temp0=300.0,ig=-1')
+    f.write('  ntt=3,gamma_ln=2.0,temp0=300.0,ig=-1\n')
     if index>0:
         plumed_in = 'pump'+str(index)+'_'+direction+'.dat'
         f.write(',\n  plumed=1,plumedfile=\''+plumed_in+'\'\n/\n')
     else:
-        f.write('\n')
+        f.write('/\n')
     f.close()
     return file_name
 
@@ -159,12 +162,3 @@ def strip_topology_wat():
     else:
         print('No mol.prmtop file, maybe in the wrong directory.')
     return None
-
-def check_cuda_error(index,direction,time):
-    '''
-        Use plumed will sometimes cause cuda memory error,
-        When this happens, we want to rerun the simulation.
-    '''
-    top_file = 'mol.prmtop'
-    traj_file = 'prod'+str(index)+'_'+direction+'.mdcrd'
-
