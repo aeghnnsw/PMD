@@ -166,7 +166,7 @@ def run_simulation(direction,index,time,cuda='0'):
     run_command = 'pmemd.cuda -O -i '+input_file+' -o '+out_file+' -p mol.prmtop -c equil.rst -x '+mdcrd_file
     os.system(run_command)
 
-def write_prod_input_file(direction,index,time):
+def write_prod_input_file_const(direction,index,time):
     '''
     write prod input files
     Inputs:
@@ -194,7 +194,32 @@ def write_prod_input_file(direction,index,time):
     f.close()
     return file_name
 
-def write_cpptraj_input_file(index,direction):
+def write_prod_input_file_nm(index,time):
+    '''
+    write prod input files
+    Inputs:
+        time:   int in ps
+        index:  if index=0 it is unbiased simulation
+    return input file name
+    '''
+    nsteps = str(int(1000*time))
+    file_name = 'prod'+str(index)+'_nm.in'
+    f = open(file_name,'w')
+    f.write(file_name+'\n')
+    f.write('&cntrl\n')
+    f.write('  imin=0,irest=1,ntx=5,\n  nstlim='+nsteps+',dt=0.001,\n  ntc=2,ntf=2,\n')
+    f.write('  cut=8.0, ntb=2, ntp=1, taup=2.0,\n')
+    f.write('  ntpr=5000,ntwx=10,\n')
+    f.write('  ntt=3,gamma_ln=2.0,temp0=300.0,ig=-1')
+    if index>0:
+        plumed_in = 'pump'+str(index)+'_nm.dat'
+        f.write(',\n  plumed=1,plumedfile=\''+plumed_in+'\'\n/\n')
+    else:
+        f.write('\n/\n')
+    f.close()
+    return file_name
+
+def write_cpptraj_input_file_const(index,direction):
     '''
     write cpptraj inpute file for extract waters and Na+ and CL-
     return the file name
@@ -209,6 +234,25 @@ def write_cpptraj_input_file(index,direction):
     file_name=file_name+'.in'
     trajin = trajin+'.mdcrd'
     trajout = trajout+'_nw.xtc'
+    f = open(file_name,'w')
+    f.write('parm mol.prmtop\n')
+    f.write(trajin+'\n')
+    f.write('strip :WAT\n')
+    f.write('strip :Na+\n')
+    f.write('strip :Cl-\n')
+    f.write(trajout+'\n')
+    f.close()
+    return file_name 
+
+def write_cpptraj_input_file_nm(index):
+    '''
+    write cpptraj inpute file for extract waters and Na+ and CL-
+    return the file name
+    '''
+    file_name='ctj'+str(index)
+    trajin = 'trajin prod'+str(index)+'_nm.mdcrd'
+    trajout = 'trajout prod'+str(index)+'_nm_nw.xtc'
+    file_name=file_name+'.in'
     f = open(file_name,'w')
     f.write('parm mol.prmtop\n')
     f.write(trajin+'\n')
