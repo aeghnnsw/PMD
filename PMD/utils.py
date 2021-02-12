@@ -1,14 +1,16 @@
 import numpy as np
 import mdtraj as md
 import os
+from prody import *
 
-def get_atom_ids(pdb_name,res_ids):
+def get_atom_ids(pdb_name,res_ids,calpha=True):
     '''
     Takes pdb file name, and res_ids as input and returns the atoms ids
     Request: prepare the pdb that has added H atoms
     Inputs:
         pdb_name:   string
         res_ids:    list of integers
+        calpha:     bool, default to be True, when true, only select calpha atoms
     Return:
         atom_ids:   list of integers
     '''
@@ -16,14 +18,55 @@ def get_atom_ids(pdb_name,res_ids):
     top = pdb.topology
     atom_ids = list()
     if isinstance(res_ids,int):
-        atom_ids=top.select('resid '+str(res_ids))
+        if calpha:
+            atom_ids=top.select('name CA and resid '+str(res_ids))
+        else:
+            atom_ids=top.select('resid '+str(res_ids))
     else:
         for res_id in res_ids:
-            atom_ids.extend(top.select('resid '+str(res_id)))
+            if calpha:
+                atom_ids.extend(top.select('name CA and resid '+str(res_id)))
+            else:
+                atom_ids.extend(top.select('resid '+str(res_id)))
     return atom_ids
 
+def calc_nm_vec(pdb_name,res_ids,mode_number=0):
+    '''
+    Inputs:
+        pdb_name:       string
+        res_ids:        list of integers or integer
+        mode_number:    Mode number indicate which normal mode to use, defautl=0
+    Returns:
+        nm_vec:     Normal modes vector for input res_ids, shape: n_res*3
+    '''
+    if isinstance(res_ids,int):
+        id_str = str(res_ids)
+    else:
+        id_str_list = [str(i) for i in res_ids]
+        id_str = ' '.join(id_str_list)
+    protein = parsePDB(pdb_name)
+    calphas = protein.select('calpha')
+    target_id = protein.select('calpha and resnum '+id_str).getResnums()
+    N = len(target_id)
+    atom_list = list(calphas.getResnums())
+    tar_res_id = [atom_list.index(i) for i in target_id]
+    vec_ids = list()
+    for temp_id in tar_res_id:
+        vec_ids.append(temp_id*3)
+        vec_ids.append(temp_id*3+1)
+        vec_ids.append(temp_id*3+2)
+    anm = ANM('ANM analysis')
+    anm.buildHessian(calphas)
+    anm.calcModes()
+    mode = anm[mode_number]
+    eigvec = mode.getEigvec()
+    vec = eigvec[vec_ids]
+    vec = vec/np.sqrt(np.sum(vec*vec))
+    vec = vec*np.sqrt(N)
+    return vec.round(2)
 
-def write_plumed_file(atom_ids,frequency,force,index,direction):
+
+def write_plumed_file_const(atom_ids,frequency,force,index,direction):
     '''
     write plumed input file, use BIAS_VALUE as BIAS potential
     Inputs:
@@ -45,22 +88,62 @@ def write_plumed_file(atom_ids,frequency,force,index,direction):
     f.write('k: MATHEVAL ARG=t VAR=t FUNC='+k+'*'+'cos(t*'+omega+') PERIODIC=NO\n')
     f.write('P: POSITION ATOM=c\n')
     f.write('V: MATHEVAL ARG=P.'+direction+',k VAR=x,y FUNC=x*y PERIODIC=NO\n')
-    f.write('BV: BIASVALUE ARG=V')
+    f.write('BV: BIASVALUE ARG=V\n')
     f.close()
 
 
-def write_plumed_files(atom_ids,frequency,force,index):
+def write_plumed_files_const(atom_ids,frequency,force,index):
     '''
     write plumed input files for 3 directions
     Inputs:
         atom_ids:   list of integers
-        frequency:  float (see write_plumed_file)
-        force:      float (see write_plumed_file)
-        direction:  str   (see write_plumed_file)
+        frequency:  float (see write_plumed_file_const)
+        force:      float (see write_plumed_file_const)
+        direction:  str   (see write_plumed_file_const)
     '''
-    write_plumed_file(atom_ids,frequency,force,index,'x')
-    write_plumed_file(atom_ids,frequency,force,index,'y')
-    write_plumed_file(atom_ids,frequency,force,index,'z')
+    write_plumed_file_const(atom_ids,frequency,force,index,'x')
+    write_plumed_file_const(atom_ids,frequency,force,index,'y')
+    write_plumed_file_const(atom_ids,frequency,force,index,'z')
+
+def write_plumed_file_nm(atom_ids,frequency,force,index,vec):
+    '''
+    write plumed input files for normal modes input 
+    Inputes:
+        vec:    the eigenvec of the normal modes for the selected atoms
+    '''
+    file_name = 'pump'+str(index)+'_nm.dat'
+    atoms = [str(atom_id+1) for atom_id in atom_ids]
+    atoms_str = ','.join(atoms)
+    k = str(round(force/1.661,2))
+    omega = str(round(frequency*6.28,2))
+
+    x_weights_array = vec[0::3]
+    y_weights_array = vec[1::3]
+    z_weights_array = vec[2::3]
+    
+    x_weights_list = [str(weight) for weight in x_weights_array]
+    y_weights_list = [str(weight) for weight in y_weights_array]
+    z_weights_list = [str(weight) for weight in z_weights_array]
+
+    x_weights_str = ','.join(x_weights_list)
+    y_weights_str = ','.join(y_weights_list)
+    z_weights_str = ','.join(z_weights_list)
+
+    f=open(file_name,'w')
+    f.write('t: TIME\n')
+    f.write('cx: CENTER ATOMS='+atoms_str+' WEIGHTS='+x_weights_str+' NOPBC\n')
+    f.write('cy: CENTER ATOMS='+atoms_str+' WEIGHTS='+y_weights_str+' NOPBC\n')
+    f.write('cz: CENTER ATOMS='+atoms_str+' WEIGHTS='+z_weights_str+' NOPBC\n')
+    f.write('k: MATHEVAL ARG=t VAR=t FUNC='+k+'*'+'cos(t*'+omega+') PERIODIC=NO\n')
+    f.write('Px: POSITION ATOM=cx\n')
+    f.write('Py: POSITION ATOM=cy\n')
+    f.write('Pz: POSITION ATOM=cz\n')
+    f.write('V: MATHEVAL ARG=Px.x,Py.y,Pz.z,k VAR=x,y,z,k FUNC=(x+y+z)*k PERIODIC=NO\n')
+    f.write('BV: BIASVALUE ARG=V\n')
+    f.close()
+    return None
+
+
 
 def run_simulation(direction,index,time,cuda='0'):
     '''
