@@ -19,15 +19,15 @@ def get_atom_ids(pdb_name,res_ids,calpha=True):
     atom_ids = list()
     if isinstance(res_ids,int):
         if calpha:
-            atom_ids=top.select('name CA and resid '+str(res_ids))
+            atom_ids=top.select('name CA and resid '+str(res_ids-1))
         else:
-            atom_ids=top.select('resid '+str(res_ids))
+            atom_ids=top.select('resid '+str(res_ids-1))
     else:
         for res_id in res_ids:
             if calpha:
-                atom_ids.extend(top.select('name CA and resid '+str(res_id)))
+                atom_ids.extend(top.select('name CA and resid '+str(res_id-1)))
             else:
-                atom_ids.extend(top.select('resid '+str(res_id)))
+                atom_ids.extend(top.select('resid '+str(res_id-1)))
     return atom_ids
 
 def calc_nm_vec(pdb_name,res_ids,mode_number=0):
@@ -118,9 +118,15 @@ def write_plumed_file_nm(atom_ids,frequency,force,index,vec):
     omega = str(round(frequency*6.28,2))
 
     x_weights_array = vec[0::3]
+    x_weight = np.sqrt(np.sum(x_weights_array*x_weights_array))
+    x_weight = str(x_weight.round(2))
     y_weights_array = vec[1::3]
+    y_weight = np.sqrt(np.sum(y_weights_array*y_weights_array))
+    y_weight = str(y_weight.round(2))
     z_weights_array = vec[2::3]
-    
+    z_weight = np.sqrt(np.sum(z_weights_array*z_weights_array))
+    z_weight = str(z_weight.round(2))
+   
     x_weights_list = [str(weight) for weight in x_weights_array]
     y_weights_list = [str(weight) for weight in y_weights_array]
     z_weights_list = [str(weight) for weight in z_weights_array]
@@ -138,7 +144,7 @@ def write_plumed_file_nm(atom_ids,frequency,force,index,vec):
     f.write('Px: POSITION ATOM=cx\n')
     f.write('Py: POSITION ATOM=cy\n')
     f.write('Pz: POSITION ATOM=cz\n')
-    f.write('V: MATHEVAL ARG=Px.x,Py.y,Pz.z,k VAR=x,y,z,k FUNC=(x+y+z)*k PERIODIC=NO\n')
+    f.write('V: MATHEVAL ARG=Px.x,Py.y,Pz.z,k VAR=x,y,z,k FUNC=('+x_weight+'*x+'+y_weight+'*y+'+z_weight'*z)*k PERIODIC=NO\n')
     f.write('BV: BIASVALUE ARG=V\n')
     f.close()
     return None
