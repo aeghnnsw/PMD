@@ -144,7 +144,7 @@ def write_plumed_file_nm(atom_ids,frequency,force,index,vec):
     f.write('Px: POSITION ATOM=cx\n')
     f.write('Py: POSITION ATOM=cy\n')
     f.write('Pz: POSITION ATOM=cz\n')
-    f.write('V: MATHEVAL ARG=Px.x,Py.y,Pz.z,k VAR=x,y,z,k FUNC=('+x_weight+'*x+'+y_weight+'*y+'+z_weight'*z)*k PERIODIC=NO\n')
+    f.write('V: MATHEVAL ARG=Px.x,Py.y,Pz.z,k VAR=x,y,z,k FUNC=('+x_weight+'*x+'+y_weight+'*y+'+z_weight+'*z)*k PERIODIC=NO\n')
     f.write('BV: BIASVALUE ARG=V\n')
     f.close()
     return None
