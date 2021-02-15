@@ -26,7 +26,7 @@ def calc_com(index,direction):
     return com_data
 
 
-def calc_spectrum(frequency,range=0,index,direction):
+def calc_spectrum(frequency,index,direction):
     '''
     Claculate the baseline of unbiased simulation
     Inputs:
