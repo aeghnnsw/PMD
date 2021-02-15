@@ -67,7 +67,7 @@ def write_cpptraj_vac_input_file(pdb_file,crd_file,vel_file,top_file):
     f.write('parm '+top_file+'\n')
     f.write('trajin '+crd_file+' mdvel '+vel_file+'\n')
     for i in range(res_num):
-        atom_ids = utils.get_atom_ids(pdb_file,i+1)
+        atom_ids = utils.get_atom_ids(pdb_file,i+1,False)
         atom_ids_str_list = [str(id+1) for id in atom_ids]
         atom_mask = ','.join(atom_ids_str_list)
         out_file = 'res_'+str(i+1)+'_vac.out'
