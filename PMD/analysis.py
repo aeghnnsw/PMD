@@ -1,7 +1,7 @@
 import numpy as np
 import mdtraj as md
 from numpy.fft import rfft, rfftfreq
-import utils
+from PMD import utils as utils
 import os
 
 def calc_com(index,direction):
