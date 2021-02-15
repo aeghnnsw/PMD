@@ -1,7 +1,6 @@
 import numpy as np
 import mdtraj as md
-import numpy as np
-from np.fft import rfft, rfftfreq
+from numpy.fft import rfft, rfftfreq
 import utils
 import os
 
