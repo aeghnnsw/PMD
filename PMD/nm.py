@@ -66,7 +66,7 @@ def calc_nm_vec(pdb_file,res_ids,mode_number=0):
     return vec.round(2)
 
 
-def clac_nm_fluc(pdb_file,mode_number=0):
+def calc_nm_fluc(pdb_file,mode_number=0):
     '''
     calculate the fluctuations for each residue at given mode number
     Returns:
