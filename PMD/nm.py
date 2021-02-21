@@ -30,10 +30,10 @@ def get_atom_ids(pdb_name,res_ids,calpha=True):
                 atom_ids.extend(top.select('resid '+str(res_id-1)))
     return atom_ids
 
-def calc_nm_vec(pdb_name,res_ids,mode_number=0):
+def calc_nm_vec(pdb_file,res_ids,mode_number=0):
     '''
     Inputs:
-        pdb_name:       string
+        pdb_file:       string
         res_ids:        list of integers or integer
         mode_number:    Mode number indicate which normal mode to use, defautl=0
     Returns:
@@ -44,7 +44,7 @@ def calc_nm_vec(pdb_name,res_ids,mode_number=0):
     else:
         id_str_list = [str(i) for i in res_ids]
         id_str = ' '.join(id_str_list)
-    protein = parsePDB(pdb_name)
+    protein = parsePDB(pdb_file)
     calphas = protein.select('calpha')
     target_id = protein.select('calpha and resnum '+id_str).getResnums()
     N = len(target_id)
@@ -64,6 +64,24 @@ def calc_nm_vec(pdb_name,res_ids,mode_number=0):
     vec = vec/np.sqrt(np.sum(vec*vec))
     vec = vec*np.sqrt(N)
     return vec.round(2)
+
+
+def clac_nm_fluc(pdb_file,mode_number=0):
+    '''
+    calculate the fluctuations for each residue at given mode number
+    Returns:
+        The fluctuation vec (length is the number of residues)
+    '''
+    protein = parsePDB(pdb_file)
+    calphas = protein.select('calpha')
+    anm = ANM('ANM analysis')
+    anm.buildHessian(calphas)
+    anm.calcModes()
+    mode = anm[mode_number]
+    eigvec = mode.getEigvec()
+    disp = eigvec.reshape(-1,3)
+    fluc = np.sqrt(np.sum(disp*disp,1))
+    return fluc
 
 
 def write_plumed_file(atom_ids,frequency,force,index,vec):
