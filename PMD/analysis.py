@@ -64,13 +64,14 @@ def calc_fft_intensity(data,frequency,range):
     '''
     return None
 
-def write_cpptraj_vac_input_file(pdb_file,crd_file,vel_file,top_file):
+def write_cpptraj_vac_input_file(pdb_file,crd_file,vel_file,top_file,path):
     '''
     write cpptraj input file to calculate VAC for each residue
     Input:
         crd_file:   crd file name
         vel_file;   vel file name
         top_file:   topology file name
+        path:       path directory
     '''
     res_num = utils.get_res_num(pdb_file)
     file_name='ctj_vac.in'
@@ -81,7 +82,7 @@ def write_cpptraj_vac_input_file(pdb_file,crd_file,vel_file,top_file):
         atom_ids = utils.get_atom_ids(pdb_file,i+1,False)
         atom_ids_str_list = [str(id+1) for id in atom_ids]
         atom_mask = ','.join(atom_ids_str_list)
-        out_file = 'res_'+str(i+1)+'_vac.dat'
+        out_file = path+'/res_'+str(i+1)+'_vac.dat'
         f.write('velocityautocorr @'+atom_mask+' out '+out_file+' tstep 0.01 norm\n')
     f.close()
     return None
@@ -99,7 +100,7 @@ def calc_dos(pdb_file,path):
     for i in range(res_num):
         file_name_temp = path+'/res_'+str(i+1)+'_vac.dat'
         tab_temp = pd.read_table(file_name_temp,'\s+').values
-        yf = rfft(tab[:,1]-np.mean(tab[:,1]))
+        yf = np.abs(rfft(tab_temp[:,1]-np.mean(tab_temp[:,1])))
         dos_list.append(yf)
         if i==0:
             N = len(tab_temp[:,0])
@@ -107,12 +108,12 @@ def calc_dos(pdb_file,path):
     xf = rfftfreq(N,time/N)
     return xf,dos_list
 
-def pick_peak(xf,y0,y1,freq=1,ratio_threshold):
+def pick_peak(xf,y0,y1,ratio_threshold,freq=1):
     '''
         pick the excited residue based on y1/y0 ration
         Returns the ratio list and excited residue list
     '''
-    L = len(xf)
+    L = len(y0)
     idx = np.where(xf==freq)
     ratio = np.zeros(L)
     new_residues = list()
@@ -120,5 +121,5 @@ def pick_peak(xf,y0,y1,freq=1,ratio_threshold):
         ratio[i] = y1[i][idx]/y0[i][idx]
         if ratio[i]>ratio_threshold:
             new_residues.append(i+1)
-    return raio,new_residues
+    return ratio,new_residues
     
