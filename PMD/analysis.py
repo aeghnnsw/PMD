@@ -122,8 +122,8 @@ def pick_peak(xf,y0,y1,ratio_threshold=2,top=5,freq=1):
     sort_dif = np.sort(dif)
     dif_threshold = sort_dif[-top]
     new_idx = np.where(dif>=dif_threshold)
-    for j in new_idx:
-        if y1[j][idx]/y0[j][idx]>ratio_threshold:
-            new_residues.extend(j+1)
+    for j in new_idx[0]:
+        if (y1[j][idx]/y0[j][idx])>ratio_threshold:
+            new_residues.append(j+1)
     return new_residues
     
