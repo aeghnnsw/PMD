@@ -108,18 +108,22 @@ def calc_dos(pdb_file,path):
     xf = rfftfreq(N,time/N)
     return xf,dos_list
 
-def pick_peak(xf,y0,y1,ratio_threshold,freq=1):
+def pick_peak(xf,y0,y1,ratio_threshold=2,top=5,freq=1):
     '''
         pick the excited residue based on y1/y0 ration
         Returns the ratio list and excited residue list
     '''
     L = len(y0)
     idx = np.where(xf==freq)
-    ratio = np.zeros(L)
+    dif = np.zeros(L)
     new_residues = list()
     for i in range(L):
-        ratio[i] = y1[i][idx]/y0[i][idx]
-        if ratio[i]>ratio_threshold:
-            new_residues.append(i+1)
-    return ratio,new_residues
+        dif[i] = y1[i][idx]-y0[i][idx]
+    sort_dif = np.sort(dif)
+    dif_threshold = sort_dif[-top]
+    new_idx = np.where(dif>=dif_threshold)
+    for j in new_idx:
+        if y1[j][idx]/y0[j][idx]>ratio_threshold:
+            new_residues.extend(j+1)
+    return new_residues
     
