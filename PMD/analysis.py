@@ -22,47 +22,31 @@ def calc_com(traj_file,top_file):
     return com_data
 
 
-def calc_fluc_spectra(com_data,time):
+def calc_fps(traj_data,time):
     '''
     Claculate the baseline of unbiased simulation
     Inputs:
-        com_traj:   com trajectories used to calculate fluctuation power spectra
+        traj:       trajectories used to calculate fluctuation power spectra, list
         time:       simulation time in ps
     Returns:
         xf:         FFT frequency used to plot figures
-        fft_list:   list of FFT of com for each residue
+        fps_list:   fluctuation power spectra list for each residue
     '''
-    fft_list = list()
-    for com_temp in com_data:
-        com_temp1 = com_temp[:,0]
-        com_temp2 = com_temp[:,1]
-        com_temp3 = com_temp[:,2]
-        yf1 = rfft(com_temp1-np.mean(com_temp1))
-        yf2 = rfft(com_temp2-np.mean(com_temp2))
-        yf3 = rfft(com_temp3-np.mean(com_temp3))
-        yf = np.sqrt(yf1*yf1+yf2*yf2+yf3*yf3)
-        fft_list.append(yf)
-    N = len(com_data[0])
+    fps_list = list()
+    for traj_temp in traj_data:
+        traj_temp1 = traj_temp[:,0]
+        traj_temp2 = traj_temp[:,1]
+        traj_temp3 = traj_temp[:,2]
+        yf1 = rfft(traj_temp1-np.mean(traj_temp1))
+        yf2 = rfft(traj_temp2-np.mean(traj_temp2))
+        yf3 = rfft(traj_temp3-np.mean(traj_temp3))
+        yf = yf1*yf1+yf2*yf2+yf3*yf3
+        fps_list.append(yf)
+    N = len(traj_data[0])
     xf = rfftfreq(N,time/N)
-    return xf, fft_list
+    return xf, fps_list
     
 
-
-def calc_fft_intensity(data,frequency,range):
-    '''
-    Give a sequene of data points, calculate the FFT intensity of a particular frequency
-    Input:
-        data,       numpy array with length N
-        frequency,  float frequency that calculate intensity at
-        range,      int +- number of frequencies used to calculate intensity
-    Returns:
-        the normalized intensity at given frequency
-    
-    N = len(data)
-    yf = rfft(data)
-    xf = rfftfreq() 
-    '''
-    return None
 
 def write_cpptraj_vac_input_file(pdb_file,crd_file,vel_file,top_file,path):
     '''
@@ -108,17 +92,23 @@ def calc_dos(pdb_file,path):
     xf = rfftfreq(N,time/N)
     return xf,dos_list
 
-def pick_peak(xf,y0,y1,ratio_threshold=2,top=5,freq=1):
+def pick_peak(xf,y0,y1,ratio_threshold=2,top=5,window=1,freq=1):
     '''
-        pick the excited residue based on y1/y0 ration
-        Returns the ratio list and excited residue list
+        pick the excited residue based on y1/y0 ratio
+        And the difference between y1-y0, (add somw window to alleviate problems raised by small y0 values)
+        Returns the excited residue list
     '''
     L = len(y0)
     idx = np.where(xf==freq)
     dif = np.zeros(L)
     new_residues = list()
     for i in range(L):
-        dif[i] = y1[i][idx]-y0[i][idx]
+        dif_temp = y1[i][idx]-y0[i][idx]
+        if window>0:
+            for i in range(window):
+                dif_temp += y1[i][idx+i+1] - y0[i][idx+i+1]
+                dif_temp += y1[i][idx-i-1] - y0[i][idx-i-1]
+        dif[i] = dif_temp
     sort_dif = np.sort(dif)
     dif_threshold = sort_dif[-top]
     new_idx = np.where(dif>=dif_threshold)
