@@ -73,14 +73,17 @@ class nm:
         return fluc
 
 
-    def write_plumed_file(self,atom_ids,vec,frequency=1,force=100):
+    def write_plumed_file(self,atom_ids,vec,frequency=1,force=100,res_index=None):
         '''
         write plumed input files for normal modes input 
         Inputes:
             vec:    the eigenvec of the normal modes for the selected atoms
         '''
         index = self.index
-        file_name = self.path_dir+'/pump'+str(index)+'_nm.dat'
+        if res_index is None:
+            file_name = self.path_dir+'/pump'+str(index)+'_nm.dat'
+        else:
+            file_name = self.path_dir+'/pump'+str(index)+'_'+res_index+'nm.dat'
         atoms = [str(atom_id+1) for atom_id in atom_ids]
         atoms_str = ','.join(atoms)
         k = str(round(force/1.661,2))
@@ -116,10 +119,10 @@ class nm:
         f.write('V: MATHEVAL ARG=Px.x,Py.y,Pz.z,k VAR=x,y,z,k FUNC=('+x_weight+'*x+'+y_weight+'*y+'+z_weight+'*z)*k PERIODIC=NO\n')
         f.write('BV: BIASVALUE ARG=V\n')
         f.close()
-        return None
+        return file_name
 
 
-    def write_prod_input_file(self,time,velocity=False):
+    def write_prod_input_file(self,time,plumed_in,velocity=False):
         '''
         write prod input files
         Inputs:
@@ -141,7 +144,6 @@ class nm:
         f.write('\n')
         f.write('  ntt=3,gamma_ln=2.0,temp0=300.0,ig=-1')
         if index>0:
-            plumed_in = self.path_dir+'/pump'+str(index)+'_nm.dat'
             f.write(',\n  plumed=1,plumedfile=\''+plumed_in+'\'\n/\n')
         else:
             f.write('\n/\n')
@@ -224,7 +226,7 @@ class nm:
                 f.close()
                 self.index += 1
             else:
-                in_file = self.write_prod_input_file(time,velocity)
+                in_file = self.write_prod_input_file(time,None,velocity)
                 self.run(in_file,cuda,velocity=velocity)
                 self.run_cpptraj()
                 self.strip_topology_wat()
@@ -239,8 +241,8 @@ class nm:
         index = self.index
         atom_ids = utils.get_atom_ids(pdb_file,res_ids)
         vec = self.calc_nm_vec(res_ids,mode)
-        self.write_plumed_file(atom_ids,vec,frequency,force)
-        in_file = self.write_prod_input_file(time,velocity)
+        plumed_in = self.write_plumed_file(atom_ids,vec,frequency,force)
+        in_file = self.write_prod_input_file(time,plumed_in,velocity)
         self.run(in_file,cuda,velocity=velocity)
         self.run_cpptraj()
         traj_file = self.path_dir+'/prod'+str(index)+'_nm_nw.xtc'
@@ -253,17 +255,22 @@ class nm:
             os.system('rm '+self.path_dir+'/*mdcrd')
         return nr
 
-    def pump_at_res(self,res_id,mode=0,frequency=1,force=100,time=500,velocity=False,cuda='0',ratio_threshold=2,top=5,window=1,rm_file=True):
+    def pump_at_res(self,res_ids,mode=0,frequency=1,force=100,time=500,velocity=False,cuda='0',ratio_threshold=2,top=5,window=1,rm_file=True):
         '''
         Run pumped md and return the pumped residues if index>0
         '''
         pdb_file = self.pdb
-        self.index = res_id
-        index = res_id
-        atom_ids = utils.get_atom_ids(pdb_file,res_id)
+        self.index = -1
+        if isinstance(res_id,int):
+            res_index = str(res_ids)
+        if isinstance(res_id,list):
+            res_index = str()
+            for temp_id in res_ids:
+                res_index = res_index+str(temp_id)+'_'
+        atom_ids = utils.get_atom_ids(pdb_file,res_ids)
         vec = self.calc_nm_vec(res_id,mode)
-        self.write_plumed_file(atom_ids,vec,frequency,force)
-        in_file = self.write_prod_input_file(time,velocity)
+        plumed_in = self.write_plumed_file(atom_ids,vec,frequency=frequency,force=force,res_index=res_index)
+        in_file = self.write_prod_input_file(time,plumed_in,velocity)
         self.run(in_file,cuda,velocity=velocity)
         self.run_cpptraj()
         traj_file = self.path_dir+'/prod'+str(index)+'_nm_nw.xtc'
