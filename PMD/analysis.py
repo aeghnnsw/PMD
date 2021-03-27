@@ -5,7 +5,7 @@ from PMD import utils as utils
 import os
 import pandas as pd
 
-def calc_com(traj_file,top_file):
+def calc_com(traj_file,top_file,bb=True):
     '''
        load traj without water and ions
        and return the com traj of each residue
@@ -15,7 +15,10 @@ def calc_com(traj_file,top_file):
     N = traj.n_residues
     com_data = list()
     for i in range(N):
-        atom_ids = top.select('backbone and resid '+str(i))
+        if bb==True:
+            atom_ids = top.select('backbone and resid '+str(i))
+        else:
+            atom_ids = top.select('name CA and resid '+str(i))
         temp_traj = traj.atom_slice(atom_ids)
         com_data.append(md.compute_center_of_mass(temp_traj))
         del temp_traj
@@ -37,9 +40,9 @@ def calc_fps(traj_data,time):
         traj_temp1 = traj_temp[:,0]
         traj_temp2 = traj_temp[:,1]
         traj_temp3 = traj_temp[:,2]
-        yf1 = rfft(traj_temp1-np.mean(traj_temp1))
-        yf2 = rfft(traj_temp2-np.mean(traj_temp2))
-        yf3 = rfft(traj_temp3-np.mean(traj_temp3))
+        yf1 = np.abs(rfft(traj_temp1-np.mean(traj_temp1)))
+        yf2 = np.abs(rfft(traj_temp2-np.mean(traj_temp2)))
+        yf3 = np.abs(rfft(traj_temp3-np.mean(traj_temp3)))
         yf = yf1*yf1+yf2*yf2+yf3*yf3
         fps_list.append(yf)
     N = len(traj_data[0])
@@ -99,15 +102,15 @@ def pick_peak(xf,y0,y1,ratio_threshold=2,top=5,window=1,freq=1):
         Returns the excited residue list
     '''
     L = len(y0)
-    idx = np.where(xf==freq)
+    idx = np.where(xf==freq)[0][0]
     dif = np.zeros(L)
     new_residues = list()
     for i in range(L):
         dif_temp = y1[i][idx]-y0[i][idx]
         if window>0:
-            for i in range(window):
-                dif_temp += y1[i][idx+i+1] - y0[i][idx+i+1]
-                dif_temp += y1[i][idx-i-1] - y0[i][idx-i-1]
+            for j in range(window):
+                dif_temp = dif_temp + (y1[i][idx+j+1] - y0[i][idx+j+1])
+                dif_temp = dif_temp + (y1[i][idx-j-1] - y0[i][idx-j-1])
         dif[i] = dif_temp
     sort_dif = np.sort(dif)
     dif_threshold = sort_dif[-top]

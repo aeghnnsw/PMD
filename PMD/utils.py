@@ -32,4 +32,15 @@ def get_res_num(pdb_file):
     pdb = md.load_pdb(pdb_file)
     return pdb.n_residues
 
+def get_dist(pdb_file,res1,res2):
+    pdb = md.load_pdb(pdb_file)
+    top = pdb.topology
+    id1 = top.select('name CA and resid '+str(res1-1))
+    id2 = top.select('name CA and resid '+str(res2-1))
+    x1 = pdb.xyz[0][id1]
+    x2 = pdb.xyz[0][id2]
+    delta = x1-x2
+    return np.sqrt(np.sum(delta**2))
+    
+    
     

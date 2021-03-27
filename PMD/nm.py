@@ -4,14 +4,18 @@ import os
 from prody import *
 from PMD import utils as utils
 from PMD import analysis as ana
+import pickle
 
 class nm:
-    def __init__(self,pdb_file):
+    def __init__(self,pdb_file,path_dir):
         self.pdb = pdb_file
         self.n_res = utils.get_res_num(pdb_file)
         self.index = 0
         self.xf = None
         self.y0 = None        
+        self.path_dir = path_dir
+        if not os.path.exists(path_dir):
+            os.system('mkdir '+path_dir)
 
     def calc_nm_vec(self,res_ids,mode_number=0):
         '''
@@ -76,7 +80,7 @@ class nm:
             vec:    the eigenvec of the normal modes for the selected atoms
         '''
         index = self.index
-        file_name = 'pump'+str(index)+'_nm.dat'
+        file_name = self.path_dir+'/pump'+str(index)+'_nm.dat'
         atoms = [str(atom_id+1) for atom_id in atom_ids]
         atoms_str = ','.join(atoms)
         k = str(round(force/1.661,2))
@@ -125,20 +129,20 @@ class nm:
         '''
         index = self.index
         nsteps = str(int(1000*time))
-        file_name = 'prod'+str(index)+'_nm.in'
+        file_name = self.path_dir+'/prod'+str(index)+'_nm.in'
         f = open(file_name,'w')
         f.write(file_name+'\n')
         f.write('&cntrl\n')
         f.write('  imin=0,irest=1,ntx=5,\n  nstlim='+nsteps+',dt=0.001,\n  ntc=2,ntf=2,\n')
         f.write('  cut=8.0, ntb=2, ntp=1, taup=2.0,\n')
-        f.write('  ntpr=5000,ntwx=10,‘)
+        f.write('  ntpr=5000,ntwx=10,')
         if velocity:
             f.write('ntwv=10,')
         f.write('\n')
         f.write('  ntt=3,gamma_ln=2.0,temp0=300.0,ig=-1')
         if index>0:
-            plumed_in = 'pump'+str(index)+'_nm.dat'
-            f.write(‘,\n  plumed=1,plumedfile=’+plumed_in+'\'\n/\n')
+            plumed_in = self.path_dir+'/pump'+str(index)+'_nm.dat'
+            f.write(',\n  plumed=1,plumedfile=\''+plumed_in+'\'\n/\n')
         else:
             f.write('\n/\n')
         f.close()
@@ -150,9 +154,9 @@ class nm:
         return the file name
         '''
         index=self.index
-        file_name='ctj'+str(index)
-        trajin = 'trajin prod'+str(index)+'_nm.mdcrd'
-        trajout = 'trajout prod'+str(index)+'_nm_nw.xtc'
+        file_name= self.path_dir+'/ctj'+str(index)
+        trajin = 'trajin '+self.path_dir+'/prod'+str(index)+'_nm.mdcrd'
+        trajout = 'trajout '+self.path_dir+'/prod'+str(index)+'_nm_nw.xtc'
         file_name=file_name+'.in'
         f = open(file_name,'w')
         f.write('parm mol.prmtop\n')
@@ -162,7 +166,7 @@ class nm:
         f.write('strip :Cl-\n')
         f.write(trajout+'\n')
         f.close()
-        return None
+        return file_name
 
     def run_cpptraj(self):
         '''
@@ -191,47 +195,84 @@ class nm:
             print('No mol.prmtop file, maybe in the wrong directory.')
         return None
 
-    def run(self,cuda='0',in_file):
+    def run(self,in_file,cuda='0',velocity=False):
         index = self.index
-        out_file = 'prod'+str(index)+'_nm.out'
-        x_file = 'prod'+str(index)+'_nm.mdcrd'
-        f = open('run.sh','w')
+        out_file = self.path_dir+ '/prod'+str(index)+'_nm.out'
+        x_file = self.path_dir + '/prod'+str(index)+'_nm.mdcrd'
+        v_file = self.path_dir + '/prod'+str(index)+'_nm.mdvel'
+        f = open(self.path_dir+'/run.sh','w')
         f.write('#!/bin/bash\n')
         f.write('export CUDA_VISIBLE_DEVICES='+cuda+'\n')
-        f.write('pmemd.cuda -O -i '+in_file+' -o '+out_file+' -p mol.prmtop -c equil.rst -x '+x_file+'\n')
+        if velocity==False:
+            f.write('pmemd.cuda -O -i '+in_file+' -o '+out_file+' -p mol.prmtop -c equil.rst -x '+x_file+'\n')
+        else:
+            f.write('pmemd.cuda -O -i '+in_file+' -o '+out_file+' -p mol.prmtop -c equil.rst -x '+x_file+' -v '+v_file+'\n')
         f.close()
-        os.system('nohup bash run.sh &')
+        os.system('bash '+self.path_dir+'/run.sh')
 
         
-    def pump(self,res_ids,mode=0,frequency=1,force=100,time=500,velocity=False,cuda=0,ratio_threshold=2,top=5,window=1):
+    def pump(self,res_ids,mode=0,frequency=1,force=100,time=500,velocity=False,cuda='0',ratio_threshold=2,top=5,window=1,rm_file=True):
         '''
         Run pumped md and return the pumped residues if index>0
         '''
         pdb_file = self.pdb
         index = self.index
         if index==0:
-            in_file = self.write_prod_input_file(time,velocity)
-            self.run(cuda,in_file)
-            self.run_cpptraj()
-            self.strip_topology_wat()
-            traj_file = 'prod'+str(index)+'_nm_nw.xtc'
-            top_file = 'mol_nw.prmtop'
-            traj_data = ana.calc_com(traj_file,top_file)
-            self.xf,self.y0 = ana.calc_fps(traj_data,time)
-            self.index +=1
+            if os.path.exists('control.pkl'):
+                f = open('control.pkl','rb')
+                self.xf,self.y0 = pickle.load(f)
+                f.close()
+                self.index += 1
+            else:
+                in_file = self.write_prod_input_file(time,velocity)
+                self.run(in_file,cuda,velocity=velocity)
+                self.run_cpptraj()
+                self.strip_topology_wat()
+                traj_file = self.path_dir+'/prod'+str(index)+'_nm_nw.xtc'
+                top_file = 'mol_nw.prmtop'
+                traj_data = ana.calc_com(traj_file,top_file)
+                self.xf,self.y0 = ana.calc_fps(traj_data,time)
+                f = open('control.pkl','wb')
+                pickle.dump([self.xf,self.y0],f)
+                f.close()   
+                self.index +=1
         index = self.index
         atom_ids = utils.get_atom_ids(pdb_file,res_ids)
         vec = self.calc_nm_vec(res_ids,mode)
-        self.write_plumed_file(atoms_ids,vec,frequency,force)
+        self.write_plumed_file(atom_ids,vec,frequency,force)
         in_file = self.write_prod_input_file(time,velocity)
-        self.run(cuda,in_file)
+        self.run(in_file,cuda,velocity=velocity)
         self.run_cpptraj()
-        traj_file = 'prod'+str(index)+'_nm_nw.xtc'
+        traj_file = self.path_dir+'/prod'+str(index)+'_nm_nw.xtc'
         top_file = 'mol_nw.prmtop'
         traj_data = ana.calc_com(traj_file,top_file)
         _,y_temp = ana.calc_fps(traj_data,time)
-        nr = ana.pick_peak(self.xf,self.y0,y_temp,ratio_threshold,top,window,freqency)
+        nr = ana.pick_peak(self.xf,self.y0,y_temp,ratio_threshold=ratio_threshold,top=top,window=window,freq=frequency)
         self.index +=1
+        if rm_file:
+            os.system('rm '+self.path_dir+'/*mdcrd')
+        return nr
+
+    def pump_at_res(self,res_id,mode=0,frequency=1,force=100,time=500,velocity=False,cuda='0',ratio_threshold=2,top=5,window=1,rm_file=True):
+        '''
+        Run pumped md and return the pumped residues if index>0
+        '''
+        pdb_file = self.pdb
+        self.index = res_id
+        index = res_id
+        atom_ids = utils.get_atom_ids(pdb_file,res_id)
+        vec = self.calc_nm_vec(res_id,mode)
+        self.write_plumed_file(atom_ids,vec,frequency,force)
+        in_file = self.write_prod_input_file(time,velocity)
+        self.run(in_file,cuda,velocity=velocity)
+        self.run_cpptraj()
+        traj_file = self.path_dir+'/prod'+str(index)+'_nm_nw.xtc'
+        top_file = 'mol_nw.prmtop'
+        traj_data = ana.calc_com(traj_file,top_file)
+        _,y_temp = ana.calc_fps(traj_data,time)
+        nr = ana.pick_peak(self.xf,self.y0,y_temp,ratio_threshold=ratio_threshold,top=top,window=window,freq=frequency)
+        if rm_file:
+            os.system('rm '+self.path_dir+'/*mdcrd')
         return nr
         
 
