@@ -90,13 +90,13 @@ class nm:
         omega = str(round(frequency*6.28,2))
 
         x_weights_array = vec[0::3]
-        x_weight = np.sqrt(np.sum(x_weights_array*x_weights_array))
+        x_weight = np.sum(x_weights_array)
         x_weight = str(x_weight.round(2))
         y_weights_array = vec[1::3]
-        y_weight = np.sqrt(np.sum(y_weights_array*y_weights_array))
+        y_weight = np.sum(y_weights_array)
         y_weight = str(y_weight.round(2))
         z_weights_array = vec[2::3]
-        z_weight = np.sqrt(np.sum(z_weights_array*z_weights_array))
+        z_weight = np.sum(z_weights_array)
         z_weight = str(z_weight.round(2))
     
         x_weights_list = [str(weight) for weight in x_weights_array]
@@ -213,7 +213,7 @@ class nm:
         os.system('bash '+self.path_dir+'/run.sh')
 
         
-    def pump(self,res_ids,mode=0,frequency=1,force=100,time=500,velocity=False,cuda='0',ratio_threshold=2,top=5,window=1,rm_file=True):
+    def pump(self,res_ids,mode=0,frequency=1,force=100,time=500,velocity=False,cuda='0',ratio_threshold=2,top=5,window=1,rm_file=True,bb=False):
         '''
         Run pumped md and return the pumped residues if index>0
         '''
@@ -232,7 +232,7 @@ class nm:
                 self.strip_topology_wat()
                 traj_file = self.path_dir+'/prod'+str(index)+'_nm_nw.xtc'
                 top_file = 'mol_nw.prmtop'
-                traj_data = ana.calc_com(traj_file,top_file)
+                traj_data = ana.calc_com(traj_file,top_file,bb=bb)
                 self.xf,self.y0 = ana.calc_fps(traj_data,time)
                 f = open('control.pkl','wb')
                 pickle.dump([self.xf,self.y0],f)
@@ -247,39 +247,59 @@ class nm:
         self.run_cpptraj()
         traj_file = self.path_dir+'/prod'+str(index)+'_nm_nw.xtc'
         top_file = 'mol_nw.prmtop'
-        traj_data = ana.calc_com(traj_file,top_file)
+        traj_data = ana.calc_com(traj_file,top_file,bb=bb)
         _,y_temp = ana.calc_fps(traj_data,time)
-        nr = ana.pick_peak(self.xf,self.y0,y_temp,ratio_threshold=ratio_threshold,top=top,window=window,freq=frequency)
+        _,nr = ana.pick_peak(self.xf,self.y0,y_temp,ratio_threshold=ratio_threshold,top=top,window=window,freq=frequency)
         self.index +=1
         if rm_file:
             os.system('rm '+self.path_dir+'/*mdcrd')
         return nr
 
-    def pump_at_res(self,res_ids,mode=0,frequency=1,force=100,time=500,velocity=False,cuda='0',ratio_threshold=2,top=5,window=1,rm_file=True):
+    def pump_at_res(self,res_ids,mode=0,frequency=1,force=100,time=500,velocity=False,cuda='0',ratio_threshold=2,top=5,window=1,rm_file=True,bb=False):
         '''
         Run pumped md and return the pumped residues if index>0
         '''
         pdb_file = self.pdb
-        self.index = -1
-        if isinstance(res_id,int):
+        if isinstance(res_ids,int):
             res_index = str(res_ids)
-        if isinstance(res_id,list):
+        if isinstance(res_ids,list):
             res_index = str()
             for temp_id in res_ids:
                 res_index = res_index+str(temp_id)+'_'
+        index = self.index
+        if index==0:
+            if os.path.exists('control.pkl'):
+                f = open('control.pkl','rb')
+                self.xf,self.y0 = pickle.load(f)
+                f.close()
+            else:
+                in_file = self.write_prod_input_file(time,None,velocity)
+                self.run(in_file,cuda,velocity=velocity)
+                self.run_cpptraj()
+                self.strip_topology_wat()
+                traj_file = self.path_dir+'/prod'+str(index)+'_nm_nw.xtc'
+                top_file = 'mol_nw.prmtop'
+                traj_data = ana.calc_com(traj_file,top_file,bb=bb)
+                self.xf,self.y0 = ana.calc_fps(traj_data,time)
+                f = open('control.pkl','wb')
+                pickle.dump([self.xf,self.y0],f)
+                f.close()   
+            self.index+=1
+        index = self.index
         atom_ids = utils.get_atom_ids(pdb_file,res_ids)
-        vec = self.calc_nm_vec(res_id,mode)
+        vec = self.calc_nm_vec(res_ids,mode)
         plumed_in = self.write_plumed_file(atom_ids,vec,frequency=frequency,force=force,res_index=res_index)
         in_file = self.write_prod_input_file(time,plumed_in,velocity)
         self.run(in_file,cuda,velocity=velocity)
         self.run_cpptraj()
         traj_file = self.path_dir+'/prod'+str(index)+'_nm_nw.xtc'
         top_file = 'mol_nw.prmtop'
-        traj_data = ana.calc_com(traj_file,top_file)
+        traj_data = ana.calc_com(traj_file,top_file,bb=bb)
         _,y_temp = ana.calc_fps(traj_data,time)
-        nr = ana.pick_peak(self.xf,self.y0,y_temp,ratio_threshold=ratio_threshold,top=top,window=window,freq=frequency)
+        _,nr = ana.pick_peak(self.xf,self.y0,y_temp,ratio_threshold=ratio_threshold,top=top,window=window,freq=frequency)
         if rm_file:
             os.system('rm '+self.path_dir+'/*mdcrd')
+        self.index+=1
         return nr
         
 

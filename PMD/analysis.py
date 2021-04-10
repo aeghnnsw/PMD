@@ -118,5 +118,5 @@ def pick_peak(xf,y0,y1,ratio_threshold=2,top=5,window=1,freq=1):
     for j in new_idx[0]:
         if (y1[j][idx]/y0[j][idx])>ratio_threshold:
             new_residues.append(j+1)
-    return new_residues
+    return dif,new_residues
     
