@@ -6,6 +6,7 @@ from PMD import nm
 import numpy as np
 import pickle
 import os
+from time import sleep
 
 def CM_addition(CM1,CM2):
     CM = dict()
@@ -107,31 +108,37 @@ class Astar:
        
     def load_CM(self):
         if os.path.exists('connection_map.pkl'):
-            f = open('connection_map.pkl','rb')
-            connection_map = pickle.load(f)
-            f.close()
+            while True:
+                try:
+                    f = open('connection_map.pkl','rb')
+                    connection_map = pickle.load(f)
+                    f.close()
+                    break
+                except:
+                    sleep(1)
         else:
             connection_map = dict()
         return connection_map
 
     def dump_CM(self,CM1):
-        if os.path.exists('connection_map.pkl'):
-            f = open('connection_map.pkl','rb')
-            CM2 = pickle.load(f)
-            f.close()
-        else:
-            CM2 = dict()
+        CM2 = self.load_CM()        
         CM = CM_addition(CM1,CM2)
-        f = open('connection_map.pkl','wb')
-        pickle.dump(CM,f)
-        f.close()
-    
+        while True:
+            try:
+                f = open('connection_map.pkl','wb')
+                pickle.dump(CM,f)
+                f.close()
+                break
+            except:
+                sleep(1)
+
     def show_search_path(self):
         if len(self.search_path)>0:
             for node in self.search_path:
                 print(node.get_path())
     
-    def execute_search(self,mode=0,frequency=1,force=100,time=500,velocity=False,cuda='0',ratio_threshold=2,top=5,window=1):
+    def execute_search(self,mode=0,frequency=1,force=100,time=500,velocity=False,cuda='0',ratio_threshold=2,top=5,window=1,limit=20):
+        count=0
         current_id = self.current_node.get_id()
         while current_id!=self.target_id:
             self.connection_map = CM_addition(self.load_CM(),self.connection_map)
@@ -141,8 +148,12 @@ class Astar:
             if current_id in self.connection_map.keys():
                 successors = self.connection_map[current_id]
             else:
+                if count > limit:
+                    print('Search failed')
+                    return None
                 successors = self.get_successors(self.current_node,mode=mode,frequency=frequency,force=force,time=time,velocity=velocity,cuda=cuda,ratio_threshold=ratio_threshold,top=top,window=window)
                 self.connection_map[current_id] = successors
+                count = count + 1
             self.dump_CM(self.connection_map)
             if successors is not None:
                 for successor in successors:
@@ -167,6 +178,15 @@ class Astar:
                 self.current_path = self.current_node.get_path()
                 self.search_path.append(self.current_node)
                 current_id = self.current_node.get_id()
+                while(current_id in self.explored_id):
+                    if self.frontier.empty():
+                        print('Search failed')
+                        return None
+                    else:
+                        self.current_node = self.frontier.pop()
+                        self.current_path = self.current_node.get_path()
+                        self.search_path.append(self.current_node)
+                        current_id = self.current_node.get_id()
                 self.explored_id.append(current_id)
         return self.current_node
 
