@@ -5,27 +5,30 @@ from PMD import utils as utils
 import os
 import pandas as pd
 
-def calc_com(traj_file,top_file,bb=True):
+def calc_com(traj_file,top_file,bb=False):
     '''
        load traj without water and ions
        and return the com traj of each residue
+       Also return the rmsf for each residue for normalization
     '''
     traj = md.load(traj_file,top=top_file)
     top = traj.topology
     N = traj.n_residues
     com_data = list()
+    rmsf_data = list()
     for i in range(N):
         if bb==True:
             atom_ids = top.select('backbone and resid '+str(i))
         else:
             atom_ids = top.select('name CA and resid '+str(i))
         temp_traj = traj.atom_slice(atom_ids)
+        rmsf_data.append(md.rmsf(temp_traj,temp_traj,0))
         com_data.append(md.compute_center_of_mass(temp_traj))
         del temp_traj
-    return com_data
+    return com_data,rmsf_data
 
 
-def calc_fps(traj_data,time):
+def calc_fps(traj_data,rmsf_data,time=500):
     '''
     Claculate the baseline of unbiased simulation
     Inputs:
@@ -36,7 +39,7 @@ def calc_fps(traj_data,time):
         fps_list:   fluctuation power spectra list for each residue
     '''
     fps_list = list()
-    for traj_temp in traj_data:
+    for traj_temp,rmsf_temp in zip(traj_data,rmsf_data):
         traj_temp1 = traj_temp[:,0]
         traj_temp2 = traj_temp[:,1]
         traj_temp3 = traj_temp[:,2]
@@ -44,12 +47,42 @@ def calc_fps(traj_data,time):
         yf2 = np.abs(rfft(traj_temp2-np.mean(traj_temp2)))
         yf3 = np.abs(rfft(traj_temp3-np.mean(traj_temp3)))
         yf = yf1*yf1+yf2*yf2+yf3*yf3
+        yf = yf/rmsf_temp[0]
         fps_list.append(yf)
     N = len(traj_data[0])
     xf = rfftfreq(N,time/N)
     return xf, fps_list
     
+def calc_fps_at_freq(xf,fps_list,window=1,freq=1):
+    L = len(fps_list)
+    idx = np.where(xf==freq)[0][0]
+    fps = np.zeros(L)
+    new_residues = list()
+    for i in range(L):
+        fps_temp = fps_list[i][idx]
+        if window>0:
+            for j in range(window):
+                fps_temp = fps_temp + fps_list[i][idx+j+1]
+                fps_temp = fps_temp + fps_list[i][idx-j-1]
+        fps[i] = fps_temp
+    return fps
 
+def calc_control_distribution(fps_list):
+    '''
+    Take the fps at frequency of 10 control simulations as input
+    Calculate the mean and standard deviation of fps for each residue
+    '''
+    N = len(fps_list)
+    L = len(fps_list[0])
+    mean = np.zeros(L)
+    std = np.zeros(L)
+    for i in range(L):
+        fps_temp = np.zeros(N)
+        for j in range(N):
+            fps_temp[j] = fps_list[j][i]
+        mean[i] = np.mean(fps_temp)
+        std[i] = np.std(fps_temp)
+    return mean,std
 
 def write_cpptraj_vac_input_file(pdb_file,crd_file,vel_file,top_file,path):
     '''
@@ -119,4 +152,19 @@ def pick_peak(xf,y0,y1,ratio_threshold=2,top=5,window=1,freq=1):
         if (y1[j][idx]/y0[j][idx])>ratio_threshold:
             new_residues.append(j+1)
     return dif,new_residues
+ 
+def pick_peak_new(mean,std,fps,threshold=3):
+    '''
+        Inputs:
+            mean and std of control fps(at frequency)
+            fps(at frequency) of pumped simulation
+        return the excited residues
+    '''
+    L = len(mean)
+    new_residues = list()
+    for i in range(L):
+        z_temp = (fps[i]-mean[i])/std[i]
+        if z_temp>threshold:
+            new_residues.append(i+1)
+    return new_residues
     

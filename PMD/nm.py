@@ -12,7 +12,9 @@ class nm:
         self.n_res = utils.get_res_num(pdb_file)
         self.index = 0
         self.xf = None
-        self.y0 = None        
+        self.y0 = None
+        self.mean = None
+        self.std = None
         self.path_dir = path_dir
         if not os.path.exists(path_dir):
             os.system('mkdir '+path_dir)
@@ -53,7 +55,55 @@ class nm:
         vec = vec*np.sqrt(N)
         return vec.round(2)
 
+    def control_simulation(self,time,N=10,velocity=False,temperature=300,window=1,freq=1):
+        '''
+        Run control simulation for N times
+        And save the control.pkl file for peak picking
+        '''
+        self.index=0
+        in_file = self.write_prod_input_file(time,None,velocity=velocity,temperature=temperature)
+        f = open(self.path_dir+'/run_control.sh','w')
+        f.write('#!/bin/bash\n')
+        for i in range(N):
+            out_file = self.path_dir+ '/control'+str(i)+'.out'
+            x_file = self.path_dir + '/control'+str(i)+'.mdcrd'
+            v_file = self.path_dir + '/control'+str(i)+'.mdvel'
+            f.write('export CUDA_VISIBLE_DEVICES='+str(i%4)+'\n')
+            if velocity==False:
+                f.write('pmemd.cuda -O -i '+in_file+' -o '+out_file+' -p mol.prmtop -c equil.rst -x '+x_file)
+            else:
+                f.write('pmemd.cuda -O -i '+in_file+' -o '+out_file+' -p mol.prmtop -c equil.rst -x '+x_file+' -v '+v_file)
+            if (i%4)!=3 and i!=(N-1):
+                f.write(' &')
+            f.write('\n')
+        f.close()
+        os.system('bash '+self.path_dir+'/run_control.sh')
+        file_name= self.path_dir+'/ctj_control.in'
+        fps_list = list()
+        for i in range(N):
+            trajin = 'trajin '+self.path_dir+'/control'+str(i)+'.mdcrd'
+            trajout = 'trajout '+self.path_dir+'/control'+str(i)+'_nw.xtc'
+            f = open(file_name,'w')
+            f.write('parm mol.prmtop\n')
+            f.write(trajin+'\n')
+            f.write('strip :WAT\n')
+            f.write('strip :Na+\n')
+            f.write('strip :Cl-\n')
+            f.write(trajout+'\n')
+            f.close()
+            os.system('cpptraj -i '+file_name)
+            traj_temp,rmsf_temp = ana.calc_com(self.path_dir+'/control'+str(i)+'_nw.xtc','mol_nw.prmtop',bb=False)
+            xf,fps_temp = ana.calc_fps(traj_temp,rmsf_temp,time=time)
+            fps_at_freq_temp = ana.calc_fps_at_freq(xf,fps_temp,window=window,freq=freq)
+            fps_list.append(fps_at_freq_temp)
+        mean,std = ana.calc_control_distribution(fps_list)
+        f = open('control_dist.pkl','wb')
+        pickle.dump([mean,std],f)
+        f.close()
+        os.system('rm '+self.path_dir+'/*mdcrd')
+        return 0
 
+        
     def calc_nm_fluc(self,mode_number=0):
         '''
         calculate the fluctuations for each residue at given mode number
@@ -99,9 +149,9 @@ class nm:
         z_weight = np.sum(z_weights_array)
         z_weight = str(z_weight.round(2))
     
-        x_weights_list = [str(weight) for weight in x_weights_array]
-        y_weights_list = [str(weight) for weight in y_weights_array]
-        z_weights_list = [str(weight) for weight in z_weights_array]
+        x_weights_list = [str(weight+0.001) for weight in x_weights_array]
+        y_weights_list = [str(weight+0.001) for weight in y_weights_array]
+        z_weights_list = [str(weight+0.001) for weight in z_weights_array]
 
         x_weights_str = ','.join(x_weights_list)
         y_weights_str = ','.join(y_weights_list)
@@ -122,7 +172,7 @@ class nm:
         return file_name
 
 
-    def write_prod_input_file(self,time,plumed_in,velocity=False):
+    def write_prod_input_file(self,time,plumed_in,velocity=False,temperature=300):
         '''
         write prod input files
         Inputs:
@@ -136,13 +186,13 @@ class nm:
         f = open(file_name,'w')
         f.write(file_name+'\n')
         f.write('&cntrl\n')
-        f.write('  imin=0,irest=1,ntx=5,\n  nstlim='+nsteps+',dt=0.001,\n  ntc=2,ntf=2,\n')
+        f.write('  imin=0,irest=0,ntx=1,\n  nstlim='+nsteps+',dt=0.001,\n  ntc=2,ntf=2,\n')
         f.write('  cut=8.0, ntb=2, ntp=1, taup=2.0,\n')
         f.write('  ntpr=5000,ntwx=10,')
         if velocity:
             f.write('ntwv=10,')
         f.write('\n')
-        f.write('  ntt=3,gamma_ln=2.0,temp0=300.0,ig=-1')
+        f.write('  ntt=3,gamma_ln=2.0,temp0='+str(temperature)+',ig=-1')
         if index>0:
             f.write(',\n  plumed=1,plumedfile=\''+plumed_in+'\'\n/\n')
         else:
@@ -213,20 +263,25 @@ class nm:
         os.system('bash '+self.path_dir+'/run.sh')
 
         
-    def pump(self,res_ids,mode=0,frequency=1,force=100,time=500,velocity=False,cuda='0',ratio_threshold=2,top=5,window=1,rm_file=True,bb=False):
+    def pump(self,res_ids,mode=0,frequency=1,force=100,time=500,velocity=False,cuda='0',threshold=3,window=1,rm_file=True,bb=False,temperature=300):
         '''
         Run pumped md and return the pumped residues if index>0
         '''
         pdb_file = self.pdb
         index = self.index
         if index==0:
-            if os.path.exists('control.pkl'):
-                f = open('control.pkl','rb')
-                self.xf,self.y0 = pickle.load(f)
+            if os.path.exists('control_dist.pkl'):
+                f = open('control_dist.pkl','rb')
+                mean,std = pickle.load(f)
+                self.mean = mean
+                self.std = std
                 f.close()
                 self.index += 1
             else:
-                in_file = self.write_prod_input_file(time,None,velocity)
+                print('Please run control simulation')
+                return None
+                '''
+                in_file = self.write_prod_input_file(time,None,velocity=velocity,temperature=temperature)
                 self.run(in_file,cuda,velocity=velocity)
                 self.run_cpptraj()
                 self.strip_topology_wat()
@@ -238,24 +293,26 @@ class nm:
                 pickle.dump([self.xf,self.y0],f)
                 f.close()   
                 self.index +=1
+                '''
         index = self.index
         atom_ids = utils.get_atom_ids(pdb_file,res_ids)
         vec = self.calc_nm_vec(res_ids,mode)
         plumed_in = self.write_plumed_file(atom_ids,vec,frequency,force)
-        in_file = self.write_prod_input_file(time,plumed_in,velocity)
+        in_file = self.write_prod_input_file(time,plumed_in,velocity=velocity,temperature=temperature)
         self.run(in_file,cuda,velocity=velocity)
         self.run_cpptraj()
         traj_file = self.path_dir+'/prod'+str(index)+'_nm_nw.xtc'
         top_file = 'mol_nw.prmtop'
-        traj_data = ana.calc_com(traj_file,top_file,bb=bb)
-        _,y_temp = ana.calc_fps(traj_data,time)
-        _,nr = ana.pick_peak(self.xf,self.y0,y_temp,ratio_threshold=ratio_threshold,top=top,window=window,freq=frequency)
+        traj_data,rmsf_data = ana.calc_com(traj_file,top_file,bb=bb)
+        xf,y_temp = ana.calc_fps(traj_data,rmsf_data,time)
+        fps_temp = ana.calc_fps_at_freq(xf,y_temp,window=1,freq=frequency)
+        nr = ana.pick_peak_new(self.mean,self.std,fps_temp,threshold=threshold)
         self.index +=1
         if rm_file:
             os.system('rm '+self.path_dir+'/*mdcrd')
         return nr
 
-    def pump_at_res(self,res_ids,mode=0,frequency=1,force=100,time=500,velocity=False,cuda='0',ratio_threshold=2,top=5,window=1,rm_file=True,bb=False):
+    def pump_at_res(self,res_ids,mode=0,frequency=1,force=100,time=500,velocity=False,temperature=300,cuda='0',ratio_threshold=2,top=5,window=1,rm_file=True,bb=False):
         '''
         Run pumped md and return the pumped residues if index>0
         '''
@@ -273,7 +330,7 @@ class nm:
                 self.xf,self.y0 = pickle.load(f)
                 f.close()
             else:
-                in_file = self.write_prod_input_file(time,None,velocity)
+                in_file = self.write_prod_input_file(time,None,velocity=velocity,temperature=temperature)
                 self.run(in_file,cuda,velocity=velocity)
                 self.run_cpptraj()
                 self.strip_topology_wat()
@@ -289,7 +346,7 @@ class nm:
         atom_ids = utils.get_atom_ids(pdb_file,res_ids)
         vec = self.calc_nm_vec(res_ids,mode)
         plumed_in = self.write_plumed_file(atom_ids,vec,frequency=frequency,force=force,res_index=res_index)
-        in_file = self.write_prod_input_file(time,plumed_in,velocity)
+        in_file = self.write_prod_input_file(time,plumed_in,velocity=veloctiy,temperature=temperature)
         self.run(in_file,cuda,velocity=velocity)
         self.run_cpptraj()
         traj_file = self.path_dir+'/prod'+str(index)+'_nm_nw.xtc'

@@ -82,9 +82,9 @@ class Astar:
         self.search_path = list()
         self.search_path.append(self.current_node)
         
-    def get_successors(self,node,mode=0,frequency=1,force=100,time=500,velocity=False,cuda='0',ratio_threshold=2,top=5,window=1):
+    def get_successors(self,node,mode=0,frequency=1,force=100,time=500,velocity=False,temperature=300,cuda='0',threshold=3,window=1):
         res_id = int(node.id)
-        nr = self.nm.pump(res_id,mode=mode,frequency=frequency,force=force,time=time,velocity=velocity,cuda=cuda,ratio_threshold=ratio_threshold,top=top,window=window)
+        nr = self.nm.pump(res_id,mode=mode,frequency=frequency,force=force,time=time,velocity=velocity,temperature=temperature,cuda=cuda,threshold=threshold,window=window)
         return nr
 
     def evaluation_function(self,node):
@@ -137,7 +137,7 @@ class Astar:
             for node in self.search_path:
                 print(node.get_path())
     
-    def execute_search(self,mode=0,frequency=1,force=100,time=500,velocity=False,cuda='0',ratio_threshold=2,top=5,window=1,limit=20):
+    def execute_search(self,mode=0,frequency=1,force=100,time=500,velocity=False,temperature=300,cuda='0',threshold=3,window=1,limit=20):
         count=0
         current_id = self.current_node.get_id()
         while current_id!=self.target_id:
@@ -151,7 +151,7 @@ class Astar:
                 if count > limit:
                     print('Search failed')
                     return None
-                successors = self.get_successors(self.current_node,mode=mode,frequency=frequency,force=force,time=time,velocity=velocity,cuda=cuda,ratio_threshold=ratio_threshold,top=top,window=window)
+                successors = self.get_successors(self.current_node,mode=mode,frequency=frequency,force=force,time=time,velocity=velocity,temperature=temperature,cuda=cuda,threshold=threshold,window=window)
                 self.connection_map[current_id] = successors
                 count = count + 1
             self.dump_CM(self.connection_map)

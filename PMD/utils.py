@@ -45,7 +45,7 @@ def get_dist(pdb_file,res1,res2):
     delta = x1-x2
     return np.sqrt(np.sum(delta**2))
     
-def get_AM(cm='connection_map.pkl',pdb='mol.pdb'):
+def get_AM(cm='connection_map.pkl',pdb='mol.pdb',backbone_connect=True):
     f = open(cm,'rb')
     m = pickle.load(f)
     f.close()
@@ -56,9 +56,10 @@ def get_AM(cm='connection_map.pkl',pdb='mol.pdb'):
             AM[i-1][j-1]=1
     for i in range(L):
         AM[i][i] = 1
-    for i in range(1,L):
-        AM[i][i-1]=1
-        AM[i-1][i]=1
+    if backbone_connect:
+        for i in range(1,L):
+            AM[i][i-1]=1
+            AM[i-1][i]=1
     return AM
 
 def calc_shortest_path(AM):
@@ -73,22 +74,66 @@ def get_shortest_path(res_i,res_j,pred):
     temp = j
     while temp!=i:
         temp = pred[i,temp]
+        if temp<0:
+            break
         path_temp.append(temp+1)
     path = list()
     while len(path_temp)!=0:
         path.append(path_temp.pop())
     return path
 
+def get_most_visited_res(siteA,siteB,pred,top=10):
+    count = list()
+    for i in siteA:
+        for j in siteB:
+            path = get_shortest_path(i,j,pred)
+            if len(path)>2:
+                path = path[1:-1]
+                count = count + path
+    res_list = list(set(count))
+    res_count = list()
+    for res in res_list:
+        res_count.append([res,count.count(res)])
+    res_count = sorted(res_count,key=lambda x: x[1], reverse=True)
+    top_res = list()
+    if len(res_count)<top:
+        for item in res_count:
+            top_res.append(item[0])
+    else:
+        for i in range(top):
+            top_res.append(res_count[i][0])
+    return res_count,top_res,res_list
     
     
-
-
-
-
-
-
-
-
-
-    
-    
+def write_search(siteA,siteB,threshold=3,temperature=100):
+    '''
+    write search scripts for A star search
+    Give the list of residue ids in boths sites
+    '''
+    L1 = len(siteA)
+    L2 = len(siteB)
+    for i in range(L1):
+        f_name = 'searchA'+str(i)+'.py'
+        dir_name = 'sA'+str(i)
+        f = open(f_name,'w')
+        f.write('from PMD import search\n')
+        k = 0
+        for item in siteB:
+            f.write('s=search.Astar('+str(siteA[i])+','+str(item)+',\'mol.pdb\',\''+dir_name+str(k)+'\')\n')
+            f.write('s.execute_search(threshold='+str(threshold)+',cuda=\''+str(i%4)+'\',temperature='+str(temperature)+')\n')
+            f.write('s.show_search_path()\n')
+            k = k + 1
+        f.close()
+    for j in range(L2):
+        f_name = 'searchB'+str(j)+'.py'
+        dir_name = 'sB'+str(j)
+        f = open(f_name,'w')
+        f.write('from PMD import search\n')
+        k = 0
+        for item in siteA:
+            f.write('s=search.Astar('+str(siteB[j])+','+str(item)+',\'mol.pdb\',\''+dir_name+str(k)+'\')\n')
+            f.write('s.execute_search(threshold='+str(threshold)+',cuda=\''+str((L1+j)%4)+'\',temperature='+str(temperature)+')\n')
+            f.write('s.show_search_path()\n')
+            k = k + 1
+        f.close()
+    return None
