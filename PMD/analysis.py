@@ -16,13 +16,14 @@ def calc_com(traj_file,top_file,bb=False):
     N = traj.n_residues
     com_data = list()
     rmsf_data = list()
+    rmsf = md.rmsf(traj,traj,0)
     for i in range(N):
         if bb==True:
             atom_ids = top.select('backbone and resid '+str(i))
         else:
             atom_ids = top.select('name CA and resid '+str(i))
         temp_traj = traj.atom_slice(atom_ids)
-        rmsf_data.append(md.rmsf(temp_traj,temp_traj,0))
+        rmsf_data.append(rmsf[atom_ids])
         com_data.append(md.compute_center_of_mass(temp_traj))
         del temp_traj
     return com_data,rmsf_data
