@@ -324,40 +324,23 @@ class nm:
             for temp_id in res_ids:
                 res_index = res_index+str(temp_id)+'_'
         index = self.index
-        if index==0:
-            if os.path.exists('control.pkl'):
-                f = open('control.pkl','rb')
-                self.xf,self.y0 = pickle.load(f)
-                f.close()
-            else:
-                in_file = self.write_prod_input_file(time,None,velocity=velocity,temperature=temperature)
-                self.run(in_file,cuda,velocity=velocity)
-                self.run_cpptraj()
-                self.strip_topology_wat()
-                traj_file = self.path_dir+'/prod'+str(index)+'_nm_nw.xtc'
-                top_file = 'mol_nw.prmtop'
-                traj_data = ana.calc_com(traj_file,top_file,bb=bb)
-                self.xf,self.y0 = ana.calc_fps(traj_data,time)
-                f = open('control.pkl','wb')
-                pickle.dump([self.xf,self.y0],f)
-                f.close()   
-            self.index+=1
-        index = self.index
         atom_ids = utils.get_atom_ids(pdb_file,res_ids)
         vec = self.calc_nm_vec(res_ids,mode)
         plumed_in = self.write_plumed_file(atom_ids,vec,frequency=frequency,force=force,res_index=res_index)
         in_file = self.write_prod_input_file(time,plumed_in,velocity=veloctiy,temperature=temperature)
         self.run(in_file,cuda,velocity=velocity)
         self.run_cpptraj()
+        '''
         traj_file = self.path_dir+'/prod'+str(index)+'_nm_nw.xtc'
         top_file = 'mol_nw.prmtop'
         traj_data = ana.calc_com(traj_file,top_file,bb=bb)
         _,y_temp = ana.calc_fps(traj_data,time)
         _,nr = ana.pick_peak(self.xf,self.y0,y_temp,ratio_threshold=ratio_threshold,top=top,window=window,freq=frequency)
+        '''
         if rm_file:
             os.system('rm '+self.path_dir+'/*mdcrd')
         self.index+=1
-        return nr
+        return None
         
 
         
