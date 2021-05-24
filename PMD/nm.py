@@ -323,7 +323,8 @@ class nm:
             res_index = str()
             for temp_id in res_ids:
                 res_index = res_index+str(temp_id)+'_'
-        index = self.index
+        if self.index==0:
+            self.index+=1
         atom_ids = utils.get_atom_ids(pdb_file,res_ids)
         vec = self.calc_nm_vec(res_ids,mode)
         plumed_in = self.write_plumed_file(atom_ids,vec,frequency=frequency,force=force,res_index=res_index)
