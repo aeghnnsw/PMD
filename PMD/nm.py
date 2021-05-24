@@ -327,7 +327,7 @@ class nm:
         atom_ids = utils.get_atom_ids(pdb_file,res_ids)
         vec = self.calc_nm_vec(res_ids,mode)
         plumed_in = self.write_plumed_file(atom_ids,vec,frequency=frequency,force=force,res_index=res_index)
-        in_file = self.write_prod_input_file(time,plumed_in,velocity=veloctiy,temperature=temperature)
+        in_file = self.write_prod_input_file(time,plumed_in,velocity=velocity,temperature=temperature)
         self.run(in_file,cuda,velocity=velocity)
         self.run_cpptraj()
         '''
