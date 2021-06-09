@@ -5,6 +5,7 @@ from prody import *
 from PMD import utils as utils
 from PMD import analysis as ana
 import pickle
+from itertools import cycle
 
 class nm:
     def __init__(self,pdb_file,path_dir):
@@ -55,7 +56,7 @@ class nm:
         vec = vec*np.sqrt(N)
         return vec.round(2)
 
-    def control_simulation(self,time,N=10,velocity=False,temperature=300,window=1,freq=1):
+    def control_simulation(self,time,N=10,velocity=False,temperature=300,window=1,freq=1,GPU=[0,1,2,3]):
         '''
         Run control simulation for N times
         And save the control.pkl file for peak picking
@@ -64,16 +65,18 @@ class nm:
         in_file = self.write_prod_input_file(time,None,velocity=velocity,temperature=temperature)
         f = open(self.path_dir+'/run_control.sh','w')
         f.write('#!/bin/bash\n')
+        gpus = cycle(GPU)
+        n_gpu = len(GPU)
         for i in range(N):
             out_file = self.path_dir+ '/control'+str(i)+'.out'
             x_file = self.path_dir + '/control'+str(i)+'.mdcrd'
             v_file = self.path_dir + '/control'+str(i)+'.mdvel'
-            f.write('export CUDA_VISIBLE_DEVICES='+str(i%4)+'\n')
+            f.write('export CUDA_VISIBLE_DEVICES='+str(next(gpus))+'\n')
             if velocity==False:
                 f.write('pmemd.cuda -O -i '+in_file+' -o '+out_file+' -p mol.prmtop -c equil.rst -x '+x_file)
             else:
                 f.write('pmemd.cuda -O -i '+in_file+' -o '+out_file+' -p mol.prmtop -c equil.rst -x '+x_file+' -v '+v_file)
-            if (i%4)!=3 and i!=(N-1):
+            if (i%n_gpu)!=(n_gpu-1) and i!=(N-1):
                 f.write(' &')
             f.write('\n')
         f.close()
