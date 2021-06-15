@@ -65,7 +65,7 @@ def calc_fps_at_freq(xf,fps_list,window=1,freq=1):
             for j in range(window):
                 fps_temp = fps_temp + fps_list[i][idx+j+1]
                 fps_temp = fps_temp + fps_list[i][idx-j-1]
-        fps[i] = fps_temp
+        fps[i] = fps_temp/(2*window+1)
     return fps
 
 def calc_control_distribution(fps_list):
